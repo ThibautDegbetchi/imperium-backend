@@ -56,13 +56,13 @@ module.exports = {
             function (user, done) {
                 if (user) {
                     bcrypt.compare(password, user.password, function (errBycrypt, resBycrypt) {
-                        done(null, resBycrypt,user);
+                        done(null, resBycrypt, user);
                     });
                 } else {
                     return res.status(404).json({ error: "user not exist in db" });
                 }
             },
-            function (resBycrypt,user, done) {
+            function (resBycrypt, user, done) {
                 if (resBycrypt) {
                     token = jwtUtils.generateToken(user.id);
                     console.log("after generating token");
@@ -84,12 +84,10 @@ module.exports = {
                 if (nUser) {
                     return res.status(200).json(nUser);
                 } else {
-                    return res.status(500).json({ error:"user not found" })
+                    return res.status(500).json({ error: "user not found" })
                 }
             }
         ]);
-
-
     },
     register: function (req, res) {
         if (req.body.name == null ||
@@ -105,37 +103,81 @@ module.exports = {
         let phoneNumber = req.body.phoneNumber;
         let password = req.body.password;
 
-        models.User.findOne({
-            where: {
-                [Op.or]: [{ email: req.body.email },
-                { phoneNumber: req.body.phoneNumber }]
-            }
-        }).then(function (user) {
-            if (user) {
-                console.log("dans le if du premier then");
-                return res.status(409).json({ error: 'User already exist' });
-            } else {
-                console.log("dans le else du premier then");
-                bcrypt.hash(password, 7, function (err, hash) {
+        // models.User.findOne({
+        //     where: {
+        //         [Op.or]: [{ email: req.body.email },
+        //         { phoneNumber: req.body.phoneNumber }]
+        //     }
+        // }).then(function (user) {
+        //     if (user) {
+        //         console.log("dans le if du premier then");
+        //         return res.status(409).json({ error: 'User already exist' });
+        //     } else {
+        //         console.log("dans le else du premier then");
+        //         bcrypt.hash(password, 7, function (err, hash) {
+        //             models.User.create({
+        //                 email: email,
+        //                 name: name,
+        //                 phoneNumber: phoneNumber,
+        //                 password: hash
+        //             }).then(function (userCreate) {
+        //                 if (userCreate) {
+        //                     console.log("dans le if du deuxieme then");
+        //                     return res.status(200).json({ userId: userCreate.id });
+        //                 } else
+        //                     console.log("dans le else du dexieme then");
+        //                 return res.status(500).json({ error: 'cannot create user' });
+        //             })
+        //         });
+        //     }
+        // }).catch(function (e) {
+        //     console.log("dans le catch\n");
+        //     return res.status(500).json(e);
+        // })
+
+        asyncLib.waterfall([
+            function (done) {
+                models.User.findOne({
+                    where: {
+                        [Op.or]: [{ email: req.body.email },
+                        { phoneNumber: req.body.phoneNumber }]
+                    }
+                }).then(function (user) {
+                    if (user) {
+                        console.log("dans le if du premier then");
+                        return res.status(409).json({ error: 'User already exist' });
+                    } else {
+                        console.log("dans le else du premier then");
+                        bcrypt.hash(password, 7, function (err, hash) {
+                            done(null, hash);
+                        });
+                    }
+                })
+            },
+            function (hash, done) {
+                if (hash) {
                     models.User.create({
                         email: email,
                         name: name,
                         phoneNumber: phoneNumber,
                         password: hash
                     }).then(function (userCreate) {
-                        if (userCreate) {
-                            console.log("dans le if du deuxieme then");
-                            return res.status(200).json({ userId: userCreate.id });
-                        } else
-                            console.log("dans le else du dexieme then");
-                        return res.status(500).json({ error: 'cannot create user' });
+                        done(null, userCreate);
                     })
-                });
+                } else {
+                    return res.status(500).json({ error: "cannot hash password" });
+                }
+            },
+            function (userCreate) {
+                if (userCreate) {
+                    console.log("dans le if du deuxieme then");
+                    return res.status(200).json({ userId: userCreate.id });
+                } else {
+                    console.log("dans le else du dexieme then");
+                    return res.status(500).json({ error: 'cannot create user' });
+                }
             }
-        }).catch(function (e) {
-            console.log("dans le catch\n");
-            return res.status(500).json(e);
-        })
+        ]);
 
     }
 }
