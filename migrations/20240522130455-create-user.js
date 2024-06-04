@@ -1,4 +1,7 @@
 'use strict';
+
+const { toDefaultValue } = require('sequelize/lib/utils');
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
@@ -24,7 +27,7 @@ module.exports = {
       isAdmin: {
         allowNull: true,
         type: Sequelize.BOOLEAN,
-        default: false
+        defaultValue: false
       },
       phoneNumber: {
         allowNull: false,
