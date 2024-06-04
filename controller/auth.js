@@ -1,6 +1,7 @@
 let bcrypt = require('bcrypt');
 let models = require('../models');
 let jwtUtils = require('../utils/jwt.util');
+let asyncLib = require('async');
 const { Op, where } = require('sequelize');
 
 module.exports = {
@@ -14,33 +15,79 @@ module.exports = {
         let token;
 
 
-        models.User.findOne({
-            where: { email: email }
-        }).then(function (user) {
-           if(user){
-            bcrypt.compare(password, user.password, function (errBycrypt, resBycrypt) {
+        // models.User.findOne({
+        //     where: { email: email }
+        // }).then(function (user) {
+        //    if(user){
+        //     bcrypt.compare(password, user.password, function (errBycrypt, resBycrypt) {
+        //         if (resBycrypt) {
+        //             token = jwtUtils.generateToken(user.id);
+        //             console.log("after generating token");
+        //             models.User.update( { token: token },
+        //                 {where: {
+        //                         email: email
+        //                     }
+        //                 }).then(function (nUser) {
+        //                     return res.status(200).json(nUser);
+        //                 }).catch(function (e) {
+        //                     return res.status(400).json(e);
+        //                 });
+        //         }else{
+        //             return res.status(403).json({error:"invalid password"});
+        //         }
+        //     });
+        //    }else{
+        //     return res.status(404).json({error:"user not exist in db"});
+        //    }
+        // }).catch(function(){
+        //     return res.status(500).json({error:"unable to verify user"});
+        // })
+
+        asyncLib.waterfall([
+            function (done) {
+                models.User.findOne({
+                    where: { email: email }
+                }).then(function (user) {
+                    done(null, user);
+                }).catch(function () {
+                    return res.status(500).json({ error: "cannot find user" });
+                });
+            },
+            function (user, done) {
+                if (user) {
+                    bcrypt.compare(password, user.password, function (errBycrypt, resBycrypt) {
+                        done(null, resBycrypt,user);
+                    });
+                } else {
+                    return res.status(404).json({ error: "user not exist in db" });
+                }
+            },
+            function (resBycrypt,user, done) {
                 if (resBycrypt) {
                     token = jwtUtils.generateToken(user.id);
                     console.log("after generating token");
-                    models.User.update( { token: token },
-                        {where: {
+                    models.User.update({ token: token },
+                        {
+                            where: {
                                 email: email
                             }
                         }).then(function (nUser) {
-                            return res.status(200).json(nUser);
+                            done(null, nUser);
                         }).catch(function (e) {
                             return res.status(400).json(e);
                         });
-                }else{
-                    return res.status(403).json({error:"invalid password"});
+                } else {
+                    return res.status(403).json({ error: "invalid password" });
                 }
-            });
-           }else{
-            return res.status(404).json({error:"user not exist in db"});
-           }
-        }).catch(function(){
-            return res.status(500).json({error:"unable to verify user"});
-        })
+            },
+            function (nUser) {
+                if (nUser) {
+                    return res.status(200).json(nUser);
+                } else {
+                    return res.status(500).json({ error:"user not found" })
+                }
+            }
+        ]);
 
 
     },
